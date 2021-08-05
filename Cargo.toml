@@ -8,3 +8,5 @@ edition = "2018"
 [dependencies]
 rand = "0.8"
 rayon = "1.5"
+clap = "2.33"
+indicatif = "0.16"
