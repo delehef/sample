@@ -112,16 +112,19 @@ fn main() {
     println!("Writing result to {}", &outfile);
     let mut out = File::create(&outfile).expect(&format!("Can't create `{}`", &outfile));
     for snp in done {
-        out.write_all(
-            format!(
-                "{}\t{}\t{}\t{}\n",
-                snp.name,
-                snp.a_ref,
-                snp.a_alt,
-                snp.ps.join("\t"),
-            )
-            .as_bytes(),
-        )
+        out.write_all(format_snp_out(&snp, SnpFormat::Type2).as_bytes())
         .unwrap();
+    }
+}
+
+enum SnpFormat {
+    Type1,
+    Type2,
+}
+fn format_snp_out(snp: &Snp, format: SnpFormat) -> String {
+    match format {
+        SnpFormat::Type1 => format!("{}\t{}\t{}\t{}\n",
+                                 snp.name, snp.a_ref, snp.a_alt, snp.ps.join("\t")),
+        SnpFormat::Type2 => format!("{}:{}\n", &snp.scaffold, snp.pos)
     }
 }
