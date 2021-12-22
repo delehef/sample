@@ -54,6 +54,13 @@ fn main() {
                 .default_value("out.snps"),
         )
         .arg(
+            Arg::with_name("OUTPUT_FORMAT")
+                .long("format")
+                .takes_value(true)
+                .possible_values(&["beagle", "simple"])
+                .default_value("simple")
+        )
+        .arg(
             Arg::with_name("THRESHOLD")
                 .short("t")
                 .long("threshold")
@@ -146,20 +153,17 @@ fn main() {
 
     println!("Writing result to {}", &outfile);
     let mut out = File::create(&outfile).expect(&format!("Can't create `{}`", &outfile));
+    let format = value_t!(args, "OUTPUT_FORMAT", String).unwrap();
     for snp in done {
-        out.write_all(format_snp_out(&snp, SnpFormat::Type2).as_bytes())
+        out.write_all(format_snp_out(&snp, &format).as_bytes())
         .unwrap();
     }
 }
 
-enum SnpFormat {
-    Type1,
-    Type2,
-}
-fn format_snp_out(snp: &Snp, format: SnpFormat) -> String {
+fn format_snp_out(snp: &Snp, format: &str) -> String {
     match format {
-        SnpFormat::Type1 => format!("{}\t{}\t{}\t{}\n",
-                                 snp.name, snp.a_ref, snp.a_alt, snp.ps.join("\t")),
-        SnpFormat::Type2 => format!("{}:{}\n", &snp.scaffold, snp.pos)
+        "simple" => format!("{}:{}\n", &snp.scaffold, snp.pos),
+        "beagle" => format!("{}\t{}\t{}\t{}\n", snp.name, snp.a_ref, snp.a_alt, snp.ps.join("\t")),
+        _ => unimplemented!(),
     }
 }
