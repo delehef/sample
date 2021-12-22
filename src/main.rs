@@ -33,15 +33,25 @@ fn main() {
     let args = App::new("Sample")
         .arg(
             Arg::with_name("INPUT_BEAGLE")
-                .help("Set the input beagle file to use")
-                .required(true),
+                .long("--in-beagle")
+                .takes_value(true)
+                .help("Set the input file to use in the beagle format")
         )
+        .arg(
+            Arg::with_name("INPUT_SIMPLE")
+                .long("--in-simple")
+                .takes_value(true)
+                .help("Set the input file to use in the scaffold:position format")
+        )
+        .group(ArgGroup::with_name("INPUT")
+               .args(&["INPUT_BEAGLE", "INPUT_SIMPLE"])
+               .required(true))
         .arg(
             Arg::with_name("OUTPUT")
                 .short("o")
                 .long("out")
                 .help("Sets the output file")
-                .default_value("out.beagle"),
+                .default_value("out.snps"),
         )
         .arg(
             Arg::with_name("THRESHOLD")
@@ -52,30 +62,55 @@ fn main() {
         )
         .get_matches();
 
-    let filename = args.value_of("INPUT_BEAGLE").unwrap();
+    let mut snps: Vec<Snp> = if args.is_present("INPUT_BEAGLE") {
+        let filename = args.value_of("INPUT_BEAGLE").unwrap();
+        println!("Reading {}", &filename);
+        io::BufReader::new(File::open(filename).unwrap())
+            .lines()
+            .map(|l| l.expect("Could not read line"))
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|l| {
+                let mut s = l.split('\t');
+                let name = s.next().expect(&format!("No name found in {}", l));
+                let mut ns = name.split('_');
+                Snp {
+                    scaffold: ns.nth(2).unwrap().to_owned(),
+                    pos: ns.next().unwrap().parse().unwrap(),
+                    name: name.to_owned(),
+                    a_ref: s.next().unwrap().parse().unwrap(),
+                    a_alt: s.next().unwrap().parse().unwrap(),
+                    ps: s.map(str::to_owned).collect(),
+                }
+            })
+            .collect()
+    } else if args.is_present("INPUT_SIMPLE"){
+        let filename = args.value_of("INPUT_SIMPLE").unwrap();
+        println!("Reading {}", &filename);
+        io::BufReader::new(File::open(value_t!(args, "INPUT_SIMPLE", String).unwrap()).unwrap())
+            .lines()
+            .map(|l| l.expect("Could not read line"))
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|l| {
+                let mut s = l.split('\t');
+                Snp {
+                    scaffold: s.next().expect(&format!("No scaffold found in {}", l)).to_owned(),
+                    pos: s.next().expect(&format!("No position found in {}", l)).parse().unwrap(),
+                    name: String::new(),
+                    a_ref: 0,
+                    a_alt: 0,
+                    ps: Vec::new(),
+                }
+            })
+            .collect()
+    } else {
+        panic!("Please set an input file with --in-beagle or --in-simple")
+    };
     let outfile = args.value_of("OUTPUT").unwrap();
     let threshold = value_t!(args, "THRESHOLD", i64).unwrap();
 
-    println!("Reading {}", &filename);
-    let mut snps: Vec<Snp> = io::BufReader::new(File::open(filename).unwrap())
-        .lines()
-        .map(|l| l.expect("Could not parse line"))
-        .collect::<Vec<_>>()
-        .into_par_iter()
-        .map(|l| {
-            let mut s = l.split('\t');
-            let name = s.next().expect(&format!("No name found in {}", l));
-            let mut ns = name.split('_');
-            Snp {
-                scaffold: ns.nth(2).unwrap().to_owned(),
-                pos: ns.next().unwrap().parse().unwrap(),
-                name: name.to_owned(),
-                a_ref: s.next().unwrap().parse().unwrap(),
-                a_alt: s.next().unwrap().parse().unwrap(),
-                ps: s.map(str::to_owned).collect(),
-            }
-        })
-        .collect();
 
     println!("Shuffling input");
     snps.shuffle(&mut thread_rng());
